@@ -23,6 +23,8 @@ void usage()
     writeln("usage: fft-visualizer <input-file>");
 }
 
+// TODO: plot phase derivative instead of phase
+
 int main(string[] args)
 {
     if (args.length != 2)
@@ -95,12 +97,17 @@ int main(string[] args)
     float currentAngle = 0;
 
     // Analyze audio
-    int analysisWindowSize = 1024;
-    int fftOversampling = 1;
+    int analysisWindowSize = 512;
+    int fftOversampling = 2;
 
 
     auto fftData = makeAlignedBuffer!(Complex!float)();
-    
+
+    auto magnitudes = makeAlignedBuffer!float();
+    auto phases = makeAlignedBuffer!float();
+  
+    float maxAbs = -float.infinity;
+    float minAbs = float.infinity;
 
     while(!sdl2.keyboard.isPressed(SDLK_ESCAPE))
     {
@@ -113,10 +120,22 @@ int main(string[] args)
 
         with(sdl2.keyboard)
         {
+            bool shift = isPressed(SDLK_LSHIFT) || isPressed(SDLK_RSHIFT);
             if (isPressed(SDLK_RIGHT))
-                currentPositionInSamples += sampleRate * dt;
+            {
+                if (shift)
+                    currentPositionInSamples += 10 * dt;
+                else
+                    currentPositionInSamples += sampleRate * dt;
+            }
+
             if (isPressed(SDLK_LEFT))
-                currentPositionInSamples -= sampleRate * dt;     
+            {
+                if (shift)
+                    currentPositionInSamples -= 10 * dt;
+                else
+                    currentPositionInSamples -= sampleRate * dt;
+            }
             if (isPressed(SDLK_UP))
                 currentAngle += dt;
             if (isPressed(SDLK_DOWN))
@@ -144,47 +163,95 @@ int main(string[] args)
             assert(hasData == (i+1 == analysisWindowSize));
         }
 
-        // here fftData holds fftSize bins
-        {
-            linePoints.clearContents();
-            vec4f white = vec4f(1,1,1,1);
-
-            // draw one line for each FFT bin
-            for (int i = 0; i < fftSize/2+1; ++i)
-            {
-                float frequency = (sampleRate * i) / fftSize;
-                float posx = -0.9 + 1.8 * (i / (fftSize/2.0));// * log(1 + frequency) / 4.6;
-                float phase = fftData[i].arg + currentAngle;
-                float extent = 1;
-                float abs = (80 + floatToDeciBel( abs(fftData[i]) ) ) / 100; // TODO: normalize by largest value in frame?
-                if (abs < 0)
-                    abs = 0;
-
-                float posy = abs * cos(phase);
-                float posz = abs * sin(phase);
-
-
-                linePoints.pushBack( LinePoint( vec4f(posx,0,0,1), white ) );
-                linePoints.pushBack( LinePoint( vec4f(posx,posy,posz,1), white ) );
-            }
-        }
-
         // clear the whole window
         SDL_Point windowSize = window.getSize();
         glViewport(0, 0, windowSize.x, windowSize.y);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        mat4d projection = mat4d(1, 0, 0.1, 0,
-                                 0, 1, 0.0, 0,
-                                 0, 0, 1, 0,
-                                 0, 0, 0, 1);
 
-        //    perspective(1, windowSize.x / cast(float)windowSize.y, 1.0f, 100000);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE); // additive
+        glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
 
-        vec3d eye = vec3f(0, 0, 2);
-        vec3d target = vec3f(0, 0, 0);
-        vec3d up = vec3f(0, 1, 0);
-        mat4d view = mat4d.lookAt(eye, target, up);
+        // here fftData holds fftSize bins
+        {
+            
+
+            // fill magnitude and phases
+            magnitudes.clearContents();
+            phases.clearContents();           
+
+            // draw one line for each FFT bin
+            
+            for (int i = 0; i < fftSize/2+1; ++i)
+            {
+                phases.pushBack(fftData[i].arg);
+                float mag = floatToDeciBel( abs(fftData[i]) );
+                if (mag < -100)
+                    mag = -100;
+                if (maxAbs < mag)
+                    maxAbs = mag;
+                if (minAbs > mag)
+                    minAbs = mag;
+                magnitudes.pushBack(mag);
+            }
+
+
+            float globalAlpha = 1.4f * windowSize.x / cast(float)fftSize;
+            if (globalAlpha > 1)
+                globalAlpha = 1;
+            linePoints.clearContents();
+
+            for (int i = 0; i < fftSize/2+1; ++i)
+            {
+                float mag = magnitudes[i];
+                float alpha = linmap!float(mag, minAbs, maxAbs, 0, 1);
+
+                float frequency = (sampleRate * i) / fftSize;
+                float posx = -0.9 + 1.8 * (i / (fftSize/2.0));// * log(1 + frequency) / 4.6;
+                float phase = phases[i] + currentAngle;
+                float extent = 1.0 / maxAbs;
+                float posy = alpha * cos(phase);
+                float posz = alpha * sin(phase);
+
+                vec4f color = vec4f(0.5 + cos(i*0.01f)*0.5, 
+                                    0.5 - cos(i*0.01f)*0.5,
+                                    (i&1) ? 0.5f :1.0f, globalAlpha * (0.2 + 0.8 * alpha));
+
+                linePoints.pushBack( LinePoint( vec4f(posx, 0, 0, 1), color ) );
+                linePoints.pushBack( LinePoint( vec4f(posx,posy,posz,1), color ) );
+            }
+
+            // spectrum outline
+            for (int i = 0; i < fftSize/2; ++i)
+            {
+                float posxA = -0.9 + 1.8 * (i / (fftSize/2.0));
+                float posxB = -0.9 + 1.8 * (i / (fftSize/2.0));
+                float alphaA = linmap!float(magnitudes[i], minAbs, maxAbs, 0, 1);
+                float alphaB = linmap!float(magnitudes[i+1], minAbs, maxAbs, 0, 1);
+
+                vec4f colorA = vec4f(1, 0, 0, alphaA);
+                vec4f colorB = vec4f(1, 0, 0, alphaB);
+
+                linePoints.pushBack( LinePoint( vec4f(posxA,alphaA,0,1), globalAlpha*colorA ) );
+                linePoints.pushBack( LinePoint( vec4f(posxB,alphaB,0,1), globalAlpha*colorB ) );
+            }
+        }
+
+
+        mat4d projection =
+            //mat4d.perspective(1, windowSize.x / cast(float)windowSize.y, 0.1f, 100) *
+            mat4d(1, 0, 0.1, 0,
+                  0, 1, -0.1, 0,
+                  0, 0, 1, 0,
+                  0, 0, 0, 1);
+
+            
+
+    //    vec3d eye = vec3f(0, 0, 2);
+       // vec3d target = vec3f(0, 0, 0);
+     //   vec3d up = vec3f(0, 1, 0);
+       // mat4d view = mat4d.lookAt(eye, target, up);
         mat4d model = mat4d.identity;
 
         mat4f MVP =  cast(mat4f)(projection);
