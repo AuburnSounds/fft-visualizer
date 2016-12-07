@@ -5,7 +5,6 @@ import std.math;
 import std.typecons;
 import std.complex;
 
-//import derelict.util.loader;
 import dplug.core.nogc;
 import dplug.core.alignedbuffer;
 import dplug.dsp.fft;
@@ -97,7 +96,7 @@ int main(string[] args)
     float currentAngle = 0;
 
     // Analyze audio
-    int analysisWindowSize = 512;
+    int analysisWindowSize = 1024;
     int fftOversampling = 2;
 
 
@@ -105,6 +104,7 @@ int main(string[] args)
 
     auto magnitudes = makeAlignedBuffer!float();
     auto phases = makeAlignedBuffer!float();
+    auto currentSamples = makeAlignedBuffer!float();
   
     float maxAbs = -float.infinity;
     float minAbs = float.infinity;
@@ -150,6 +150,7 @@ int main(string[] args)
         fftData.resize(fftSize);
 
         // fetch enough data for one frame of analysis, at the end it should return FFT data
+        currentSamples.clearContents();
         for (int i = 0; i < analysisWindowSize; ++i)
         {
             float input;
@@ -159,7 +160,12 @@ int main(string[] args)
             else
                 input = 0;
 
-            bool hasData = analyzer.feed(input, fftData[]);
+            currentSamples.pushBack(input);
+        }
+
+        for (int i = 0; i < analysisWindowSize; ++i)
+        {
+            bool hasData = analyzer.feed(currentSamples[i], fftData[]);
             assert(hasData == (i+1 == analysisWindowSize));
         }
 
@@ -202,7 +208,16 @@ int main(string[] args)
                 globalAlpha = 1;
             linePoints.clearContents();
 
-            for (int i = 0; i < fftSize/2+1; ++i)
+            // Add time domain points
+            for (int i = 0; i + 1 < analysisWindowSize; ++i)
+            {
+                float posx = -0.9 + (1.8 * i) / analysisWindowSize;
+                vec4f color = vec4f(1, 1, 1, 1.0);
+                linePoints.pushBack( LinePoint( vec4f(posx, currentSamples[i] - 0.7, 0, 1), color ) );
+                linePoints.pushBack( LinePoint( vec4f(posx, currentSamples[i+1] - 0.7, 0, 1), color ) );
+            }
+
+            for (int i = 0; i < fftSize /2+1; ++i)
             {
                 float mag = magnitudes[i];
                 float alpha = linmap!float(mag, minAbs, maxAbs, 0, 1);
