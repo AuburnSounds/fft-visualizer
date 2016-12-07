@@ -24,4 +24,3 @@ Controls:
 - CTRL + RIGHT: fast time forward
 - CTRL + LEFT: fast time backward
 - UP/DOWN: rotate display phase
-- SPACE: compensate normal phase change ON/OFF
