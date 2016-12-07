@@ -1,5 +1,7 @@
 # fft-visualizer
 
+![Example screenshot](screenshot.jpg)
+
 Plots magnitude and phase of STFT analysis interactively.
 This is useful to visualize a FFT, including phase of each bin.
 

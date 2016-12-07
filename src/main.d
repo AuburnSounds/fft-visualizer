@@ -96,8 +96,8 @@ int main(string[] args)
     float currentAngle = 0;
 
     // Analyze audio
-    int analysisWindowSize = 1024;
-    int fftOversampling = 2;
+    int analysisWindowSize = 2048;
+    int fftOversampling = 1;
 
     auto fftData = makeAlignedBuffer!(Complex!float)();
 
