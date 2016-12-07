@@ -99,7 +99,6 @@ int main(string[] args)
     int analysisWindowSize = 1024;
     int fftOversampling = 2;
 
-
     auto fftData = makeAlignedBuffer!(Complex!float)();
 
     auto magnitudes = makeAlignedBuffer!float();
@@ -121,20 +120,37 @@ int main(string[] args)
         with(sdl2.keyboard)
         {
             bool shift = isPressed(SDLK_LSHIFT) || isPressed(SDLK_RSHIFT);
-            if (isPressed(SDLK_RIGHT))
+            bool ctrl = isPressed(SDLK_LCTRL) || isPressed(SDLK_RCTRL);
+            bool isLeft = isPressed(SDLK_LEFT);
+            bool isRight = isPressed(SDLK_RIGHT);
+            if (isRight)
             {
                 if (shift)
-                    currentPositionInSamples += 10 * dt;
+                {
+                    testAndRelease(SDLK_RIGHT);
+                    currentPositionInSamples += 1;
+                }
+                else if (ctrl)
+                {
+                    currentPositionInSamples += 10000 * dt;
+                }
                 else
-                    currentPositionInSamples += sampleRate * dt;
+                    currentPositionInSamples += 1000 * dt;
             }
 
-            if (isPressed(SDLK_LEFT))
+            if (isLeft)
             {
                 if (shift)
-                    currentPositionInSamples -= 10 * dt;
+                {
+                    testAndRelease(SDLK_LEFT);
+                    currentPositionInSamples -= 1;
+                }
+                else if (ctrl)
+                {
+                    currentPositionInSamples -= 10000 * dt;
+                }
                 else
-                    currentPositionInSamples -= sampleRate * dt;
+                    currentPositionInSamples -= 1000 * dt;
             }
             if (isPressed(SDLK_UP))
                 currentAngle += dt;
