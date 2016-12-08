@@ -24,3 +24,10 @@ Controls:
 - CTRL + RIGHT: fast time forward
 - CTRL + LEFT: fast time backward
 - UP/DOWN: rotate display phase
+
+
+## What I'm seeing?
+
+White line is the input signal, before window multiplying.
+Red line is the magnitude spectrum, in dB.
+The coloured stuff is the FFT bins, phase and magnitude in dB are plotted.
