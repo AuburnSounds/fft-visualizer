@@ -23,7 +23,11 @@ Controls:
 - SHIFT + LEFT: move time backwar one sample
 - CTRL + RIGHT: fast time forward
 - CTRL + LEFT: fast time backward
+- CTRL + SHIFT + RIGHT: move 25% of an analysis window forward
+- CTRL + SHIFT + LEFT: move 25% of an analysis window backward
 - UP/DOWN: rotate display phase
+- P: compensate natural phase increase on/off
+- W: rotate window choice
 
 
 ## What I'm seeing?

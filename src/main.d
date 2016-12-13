@@ -89,17 +89,19 @@ int main(string[] args)
 
     AlignedBuffer!LinePoint linePoints = makeAlignedBuffer!LinePoint();   
 
-    FFTAnalyzer analyzer;
+    FFTAnalyzer!double analyzer;
     
     float sampleRate = inputSound.sampleRate;
     float currentPositionInSamples = 0;
     float currentAngle = 0;
+    bool compensateNormalPhaseIncrease = true;
+    WindowType windowType = WindowType.HANN;
 
     // Analyze audio
-    int analysisWindowSize = 2048;
-    int fftOversampling = 1;
+    int analysisWindowSize = 1024;
+    int fftOversampling = 2;
 
-    auto fftData = makeAlignedBuffer!(Complex!float)();
+    auto fftData = makeAlignedBuffer!(Complex!double)();
 
     auto magnitudes = makeAlignedBuffer!float();
     auto phases = makeAlignedBuffer!float();
@@ -123,16 +125,38 @@ int main(string[] args)
             bool ctrl = isPressed(SDLK_LCTRL) || isPressed(SDLK_RCTRL);
             bool isLeft = isPressed(SDLK_LEFT);
             bool isRight = isPressed(SDLK_RIGHT);
-            if (isRight)
+            if (testAndRelease(SDLK_p))
+                compensateNormalPhaseIncrease = !compensateNormalPhaseIncrease;
+            if (testAndRelease(SDLK_w))
             {
                 if (shift)
+                {
+                    windowType--;
+                    if (windowType < WindowType.min)
+                        windowType = WindowType.max;
+                }
+                else
+                {
+                    windowType++;
+                    if (windowType > WindowType.max)
+                        windowType = WindowType.min;
+                }
+            }
+            if (isRight)
+            {
+                if (shift && ctrl)
+                {
+                    testAndRelease(SDLK_RIGHT);
+                    currentPositionInSamples += (analysisWindowSize/4);
+                }
+                else if (shift)
                 {
                     testAndRelease(SDLK_RIGHT);
                     currentPositionInSamples += 1;
                 }
                 else if (ctrl)
                 {
-                    currentPositionInSamples += 10000 * dt;
+                    currentPositionInSamples += sampleRate * dt;
                 }
                 else
                     currentPositionInSamples += 1000 * dt;
@@ -140,14 +164,19 @@ int main(string[] args)
 
             if (isLeft)
             {
-                if (shift)
+                if (shift && ctrl)
+                {
+                    testAndRelease(SDLK_RIGHT);
+                    currentPositionInSamples -= (analysisWindowSize/4);
+                }
+                else if (shift)
                 {
                     testAndRelease(SDLK_LEFT);
                     currentPositionInSamples -= 1;
                 }
                 else if (ctrl)
                 {
-                    currentPositionInSamples -= 10000 * dt;
+                    currentPositionInSamples -= sampleRate * dt;
                 }
                 else
                     currentPositionInSamples -= 1000 * dt;
@@ -162,7 +191,7 @@ int main(string[] args)
 
         // reinitialize analyzer each frame
         // no overlap of course
-        analyzer.initialize(analysisWindowSize, fftSize, analysisWindowSize, WindowType.HANN, false); 
+        analyzer.initialize(analysisWindowSize, fftSize, analysisWindowSize, windowType, false); 
         fftData.resize(fftSize);
 
         // fetch enough data for one frame of analysis, at the end it should return FFT data
@@ -197,8 +226,6 @@ int main(string[] args)
 
         // here fftData holds fftSize bins
         {
-            
-
             // fill magnitude and phases
             magnitudes.clearContents();
             phases.clearContents();           
@@ -207,7 +234,14 @@ int main(string[] args)
             
             for (int i = 0; i < fftSize/2+1; ++i)
             {
-                phases.pushBack(fftData[i].arg);
+                double phase = fftData[i].arg;
+
+                // Compensate for "normal" phase gain
+                if (compensateNormalPhaseIncrease)
+                {
+                    phase -= 2 * PI * (cast(int)currentPositionInSamples * i) / cast(double)fftSize;
+                }
+                phases.pushBack(phase);
                 float mag = floatToDeciBel( abs(fftData[i]) );
                 if (mag < -100)
                     mag = -100;
@@ -233,7 +267,8 @@ int main(string[] args)
                 linePoints.pushBack( LinePoint( vec4f(posx, currentSamples[i+1] - 0.7, 0, 1), color ) );
             }
 
-            for (int i = 0; i < fftSize /2+1; ++i)
+            // 3D lines (phase display)
+            for (int i = 0; i < fftSize /2+1; i += 2)
             {
                 float mag = magnitudes[i];
                 float alpha = linmap!float(mag, minAbs, maxAbs, 0, 1);
