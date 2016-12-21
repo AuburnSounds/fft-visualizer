@@ -4,6 +4,7 @@
 
 Plots magnitude and phase of STFT analysis interactively.
 This is useful to visualize a FFT, including phase of each bin.
+The goal is to visualize peak-tracking algorithms.
 
 ## How to run:
 
@@ -20,7 +21,7 @@ Controls:
 - RIGHT: move time forward
 - LEFT: move time backward
 - SHIFT + RIGHT: move time forward one sample 
-- SHIFT + LEFT: move time backwar one sample
+- SHIFT + LEFT: move time backward one sample
 - CTRL + RIGHT: fast time forward
 - CTRL + LEFT: fast time backward
 - CTRL + SHIFT + RIGHT: move 25% of an analysis window forward
