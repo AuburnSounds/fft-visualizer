@@ -61,7 +61,7 @@ int main(string[] args)
                                     SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN);
     window.setTitle("fft-visualizer " ~ inputFile);
 
-    gl.reload();
+    gl.reload(GLVersion.None, GLVersion.GL33);
     gl.redirectDebugOutput();
 
     auto program = scoped!GLProgram(gl, blitShaderSource);
@@ -191,7 +191,7 @@ int main(string[] args)
 
         // reinitialize analyzer each frame
         // no overlap of course
-        analyzer.initialize(analysisWindowSize, fftSize, analysisWindowSize, windowType, false); 
+        analyzer.initialize(analysisWindowSize, fftSize, analysisWindowSize, WindowDesc(windowType, 2.5f), false); 
         fftData.resize(fftSize);
 
         // fetch enough data for one frame of analysis, at the end it should return FFT data
