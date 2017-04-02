@@ -9,6 +9,8 @@ import dplug.core.nogc;
 import dplug.core.alignedbuffer;
 import dplug.dsp.fft;
 import dplug.dsp.window;
+import dplug.dsp.envelope;
+import dplug.dsp.smooth;
 import dplug.core.math;
 import gfm.sdl2;
 import gfm.opengl;
@@ -104,6 +106,7 @@ int main(string[] args)
     auto fftData = makeAlignedBuffer!(Complex!double)();
 
     auto magnitudes = makeAlignedBuffer!float();
+    auto spectralEnv = makeAlignedBuffer!float();
     auto phases = makeAlignedBuffer!float();
     auto currentSamples = makeAlignedBuffer!float();
   
@@ -229,6 +232,7 @@ int main(string[] args)
             // fill magnitude and phases
             magnitudes.clearContents();
             phases.clearContents();           
+            spectralEnv.clearContents();
 
             // draw one line for each FFT bin
             
@@ -296,11 +300,56 @@ int main(string[] args)
                 float alphaA = linmap!float(magnitudes[i], minAbs, maxAbs, 0, 1);
                 float alphaB = linmap!float(magnitudes[i+1], minAbs, maxAbs, 0, 1);
 
-                vec4f colorA = vec4f(1, 0, 0, alphaA);
-                vec4f colorB = vec4f(1, 0, 0, alphaB);
+                bool isPeak = false;
+                if (i >= 2 && (i + 2 < fftSize/2))
+                {
+                    isPeak = ( magnitudes[i] > magnitudes[i+1])
+                          && ( magnitudes[i+1] > magnitudes[i+2])
+                          && ( magnitudes[i] > magnitudes[i-1])
+                          && ( magnitudes[i-1] > magnitudes[i-2]);
+                }
+
+                float fPeak = isPeak ? 1 : 0;
+                vec4f colorA = vec4f(1, fPeak, fPeak, alphaA);
+                vec4f colorB = vec4f(1, fPeak, fPeak, alphaB);
 
                 linePoints.pushBack( LinePoint( vec4f(posxA,alphaA,0,1), globalAlpha*colorA ) );
                 linePoints.pushBack( LinePoint( vec4f(posxB,alphaB,0,1), globalAlpha*colorB ) );
+            }
+
+            // compute spectral envelope for testing formant preservation ideas
+            {
+                for (int i = 0; i < fftSize/2; ++i)
+                {
+                    spectralEnv.pushBack(magnitudes[i]);
+                }
+
+                MeanFilter!float mean;
+                
+                int L = 40;
+                mean.initialize(0, L, 300);
+
+                for (int i = 1; i < fftSize/2; ++i)
+                {
+                    float inp = (i+L/2 < fftSize/2) ? (magnitudes[i+L/2]) : 0;
+                    spectralEnv[i] = mean.nextSample(inp);
+                }
+                
+
+                for (int i = 0; i < fftSize/2; ++i)
+                {
+                    float posxA = -0.9 + 1.8 * (i / (fftSize/2.0));
+                    float posxB = -0.9 + 1.8 * (i / (fftSize/2.0));
+
+                    float alphaA = linmap!float(spectralEnv[i], minAbs, maxAbs, 0, 1);
+                    float alphaB = linmap!float(spectralEnv[i+1], minAbs, maxAbs, 0, 1);
+
+                    vec4f colorA = vec4f(0, 1, 0, 1);
+                    vec4f colorB = vec4f(0, 1, 0, 1);
+
+                    linePoints.pushBack( LinePoint( vec4f(posxA,alphaA,0,1), globalAlpha*colorA ) );
+                    linePoints.pushBack( LinePoint( vec4f(posxB,alphaB,0,1), globalAlpha*colorB ) );
+                }
             }
         }
 
