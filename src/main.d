@@ -324,14 +324,20 @@ int main(string[] args)
                     spectralEnv.pushBack(magnitudes[i]);
                 }
 
-                MeanFilter!float mean;
+                UnstableMeanFilter!float mean;
                 
                 int L = 40;
-                mean.initialize(0, L, 300);
+                mean.initialize(0, L);
 
-                for (int i = 1; i < fftSize/2; ++i)
+                foreach(i; 0..L/2)
+                    mean.nextSample(magnitudes[0]);
+
+                foreach(i; 0..L/2)
+                    mean.nextSample(magnitudes[i]);
+
+                for (int i = 0; i < fftSize/2+1; ++i)
                 {
-                    float inp = (i+L/2 < fftSize/2) ? (magnitudes[i+L/2]) : 0;
+                    float inp = (i+L/2 < fftSize/2) ? (magnitudes[i+L/2]) : magnitudes[fftSize/2];
                     spectralEnv[i] = mean.nextSample(inp);
                 }
                 
