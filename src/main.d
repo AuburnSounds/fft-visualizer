@@ -97,7 +97,7 @@ int main(string[] args)
     float currentPositionInSamples = 0;
     float currentAngle = 0;
     bool compensateNormalPhaseIncrease = true;
-    WindowType windowType = WindowType.HANN;
+    WindowType windowType = WindowType.KAISER_BESSEL;
 
     // Analyze audio
     int analysisWindowSize = 1024;
@@ -271,14 +271,16 @@ int main(string[] args)
                 linePoints.pushBack( LinePoint( vec4f(posx, currentSamples[i+1] - 0.7, 0, 1), color ) );
             }
 
+            float ZOOM = 10.8f;
+
             // 3D lines (phase display)
-            for (int i = 0; i < fftSize /2+1; i += 2)
+            for (int i = 0; i < fftSize /2+1; i += 1)
             {
                 float mag = magnitudes[i];
                 float alpha = linmap!float(mag, minAbs, maxAbs, 0, 1);
 
                 float frequency = (sampleRate * i) / fftSize;
-                float posx = -0.9 + 1.8 * (i / (fftSize/2.0));// * log(1 + frequency) / 4.6;
+                float posx = -0.9 + ZOOM * (i / (fftSize/2.0));// * log(1 + frequency) / 4.6;
                 float phase = phases[i] + currentAngle;
                 float extent = 1.0 / maxAbs;
                 float posy = alpha * cos(phase);
@@ -292,11 +294,26 @@ int main(string[] args)
                 linePoints.pushBack( LinePoint( vec4f(posx,posy,posz,1), color ) );
             }
 
+            // unwrapped phase display
+            for (int i = 1; i < fftSize /2; i += 1)
+            {
+                float pA = normalizePhase(phases[i+1]-phases[i]);
+                float pB = normalizePhase(phases[i]-phases[i-1]);
+
+                float posA = -0.9 + ZOOM * ((i+1) / (fftSize/2.0));
+                float posB = -0.9 + ZOOM * ((i) / (fftSize/2.0));
+                
+
+                vec4f color = vec4f(1, 1, 0, 1);
+                linePoints.pushBack( LinePoint( vec4f(posA, 0.5f*pA/PI, 0, 1), color ) );
+                linePoints.pushBack( LinePoint( vec4f(posB, 0.5f*pB/PI, 0, 1), color ) );
+            }
+
             // spectrum outline
             for (int i = 0; i < fftSize/2; ++i)
             {
-                float posxA = -0.9 + 1.8 * (i / (fftSize/2.0));
-                float posxB = -0.9 + 1.8 * (i / (fftSize/2.0));
+                float posxA = -0.9 + 10.8 * (i / (fftSize/2.0));
+                float posxB = -0.9 + 10.8 * ((i+1) /(fftSize/2.0));
                 float alphaA = linmap!float(magnitudes[i], minAbs, maxAbs, 0, 1);
                 float alphaB = linmap!float(magnitudes[i+1], minAbs, maxAbs, 0, 1);
 
