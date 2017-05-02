@@ -1,10 +1,8 @@
 # fft-visualizer
 
-![Example screenshot](screenshot.jpg)
-
 Plots magnitude and phase of STFT analysis interactively.
 This is useful to visualize a FFT, including phase of each bin.
-The goal is to visualize peak-tracking algorithms.
+The goal was to prototype peak detection and spectral envelope algorithms.
 
 ## How to run:
 
@@ -35,4 +33,5 @@ Controls:
 
 White line is the input signal, before window multiplying.
 Red line is the magnitude spectrum, in dB.
+Yellow line is the phase difference, in radians.
 The coloured stuff is the FFT bins, phase and magnitude in dB are plotted.

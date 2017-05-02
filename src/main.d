@@ -271,7 +271,7 @@ int main(string[] args)
                 linePoints.pushBack( LinePoint( vec4f(posx, currentSamples[i+1] - 0.7, 0, 1), color ) );
             }
 
-            float ZOOM = 10.8f;
+            float ZOOM = 1.8f;
 
             // 3D lines (phase display)
             for (int i = 0; i < fftSize /2+1; i += 1)
@@ -312,8 +312,8 @@ int main(string[] args)
             // spectrum outline
             for (int i = 0; i < fftSize/2; ++i)
             {
-                float posxA = -0.9 + 10.8 * (i / (fftSize/2.0));
-                float posxB = -0.9 + 10.8 * ((i+1) /(fftSize/2.0));
+                float posxA = -0.9 + ZOOM * (i / (fftSize/2.0));
+                float posxB = -0.9 + ZOOM * ((i+1) /(fftSize/2.0));
                 float alphaA = linmap!float(magnitudes[i], minAbs, maxAbs, 0, 1);
                 float alphaB = linmap!float(magnitudes[i+1], minAbs, maxAbs, 0, 1);
 
