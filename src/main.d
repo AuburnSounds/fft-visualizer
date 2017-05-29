@@ -128,6 +128,11 @@ int main(string[] args)
             bool ctrl = isPressed(SDLK_LCTRL) || isPressed(SDLK_RCTRL);
             bool isLeft = isPressed(SDLK_LEFT);
             bool isRight = isPressed(SDLK_RIGHT);
+            if (ctrl && isLeft)
+                testAndRelease(SDLK_LEFT);
+            if (ctrl && isRight)
+                testAndRelease(SDLK_RIGHT);
+
             if (testAndRelease(SDLK_p))
                 compensateNormalPhaseIncrease = !compensateNormalPhaseIncrease;
             if (testAndRelease(SDLK_w))
