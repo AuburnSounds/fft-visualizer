@@ -3,14 +3,10 @@ module main;
 import std.stdio;
 import std.math;
 import std.typecons;
-import std.complex;
 
-import dplug.core.nogc;
-import dplug.core.alignedbuffer;
-import dplug.dsp.fft;
-import dplug.dsp.window;
-import dplug.dsp.envelope;
-import dplug.dsp.smooth;
+import dplug.core;
+import dplug.core;
+import dplug.dsp;
 import dplug.core.math;
 import gfm.sdl2;
 import gfm.opengl;
@@ -89,26 +85,27 @@ int main(string[] args)
 
     uint lastTime = SDL_GetTicks();
 
-    AlignedBuffer!LinePoint linePoints = makeAlignedBuffer!LinePoint();   
+    Vec!LinePoint linePoints = makeVec!LinePoint();   
 
-    FFTAnalyzer!double analyzer;
+    FFTAnalyzer!float analyzer;
     
     float sampleRate = inputSound.sampleRate;
     float currentPositionInSamples = 0;
     float currentAngle = 0;
     bool compensateNormalPhaseIncrease = true;
+    bool displayLogFrequency = true;
     WindowType windowType = WindowType.KAISER_BESSEL;
 
     // Analyze audio
-    int analysisWindowSize = 1024;
+    int analysisWindowSize = 2048;
     int fftOversampling = 2;
 
-    auto fftData = makeAlignedBuffer!(Complex!double)();
+    cfloat[] fftData;
 
-    auto magnitudes = makeAlignedBuffer!float();
-    auto spectralEnv = makeAlignedBuffer!float();
-    auto phases = makeAlignedBuffer!float();
-    auto currentSamples = makeAlignedBuffer!float();
+    auto magnitudes = makeVec!float();
+    auto spectralEnv = makeVec!float();
+    auto phases = makeVec!float();
+    auto currentSamples = makeVec!float();
   
     float maxAbs = -float.infinity;
     float minAbs = float.infinity;
@@ -135,6 +132,8 @@ int main(string[] args)
 
             if (testAndRelease(SDLK_p))
                 compensateNormalPhaseIncrease = !compensateNormalPhaseIncrease;
+            if (testAndRelease(SDLK_l))
+                displayLogFrequency = !displayLogFrequency;
             if (testAndRelease(SDLK_w))
             {
                 if (shift)
@@ -199,8 +198,9 @@ int main(string[] args)
 
         // reinitialize analyzer each frame
         // no overlap of course
-        analyzer.initialize(analysisWindowSize, fftSize, analysisWindowSize, WindowDesc(windowType, 2.5f), false); 
-        fftData.resize(fftSize);
+        auto desc = WindowDesc(windowType, WindowAlignment.right, 2.5f);
+        analyzer.initialize(analysisWindowSize, fftSize, analysisWindowSize, desc, false); 
+        fftData.reallocBuffer(fftSize);
 
         // fetch enough data for one frame of analysis, at the end it should return FFT data
         currentSamples.clearContents();
@@ -218,7 +218,7 @@ int main(string[] args)
 
         for (int i = 0; i < analysisWindowSize; ++i)
         {
-            bool hasData = analyzer.feed(currentSamples[i], fftData[]);
+            bool hasData = analyzer.feed(currentSamples[i], fftData[0..fftSize/2+1]);
             assert(hasData == (i+1 == analysisWindowSize));
         }
 
@@ -243,7 +243,7 @@ int main(string[] args)
             
             for (int i = 0; i < fftSize/2+1; ++i)
             {
-                double phase = fftData[i].arg;
+                double phase = arg(fftData[i]);
 
                 // Compensate for "normal" phase gain
                 if (compensateNormalPhaseIncrease)
@@ -251,9 +251,9 @@ int main(string[] args)
                     phase -= 2 * PI * (cast(int)currentPositionInSamples * i) / cast(double)fftSize;
                 }
                 phases.pushBack(phase);
-                float mag = floatToDeciBel( abs(fftData[i]) );
-                if (mag < -100)
-                    mag = -100;
+                float mag = convertLinearGainToDecibel( sqrt(sqAbs(fftData[i])) );
+                if (mag < -150)
+                    mag = -150;
                 if (maxAbs < mag)
                     maxAbs = mag;
                 if (minAbs > mag)
@@ -278,6 +278,23 @@ int main(string[] args)
 
             float ZOOM = 1.8f;
 
+
+            float getPosX(int bin)
+            {
+                float frequency = (sampleRate * bin) / fftSize;
+
+                float posx;
+                if (displayLogFrequency)
+                {
+                    posx = -0.9 + ZOOM * (log10(24+frequency)-1.38 ) / 2.92;
+                }
+                else
+                {
+                    posx = -0.9 + ZOOM * (bin / (fftSize/2.0));// * log(1 + frequency) / 4.6;
+                }
+                return posx;
+            }
+
             // 3D lines (phase display)
             for (int i = 0; i < fftSize /2+1; i += 1)
             {
@@ -285,7 +302,9 @@ int main(string[] args)
                 float alpha = linmap!float(mag, minAbs, maxAbs, 0, 1);
 
                 float frequency = (sampleRate * i) / fftSize;
-                float posx = -0.9 + ZOOM * (i / (fftSize/2.0));// * log(1 + frequency) / 4.6;
+
+                float posx = getPosX(i);
+
                 float phase = phases[i] + currentAngle;
                 float extent = 1.0 / maxAbs;
                 float posy = alpha * cos(phase);
@@ -300,7 +319,7 @@ int main(string[] args)
             }
 
             // unwrapped phase display
-            for (int i = 1; i < fftSize /2; i += 1)
+     /+       for (int i = 1; i < fftSize /2; i += 1)
             {
                 float pA = normalizePhase(phases[i+1]-phases[i]);
                 float pB = normalizePhase(phases[i]-phases[i-1]);
@@ -312,13 +331,13 @@ int main(string[] args)
                 vec4f color = vec4f(1, 1, 0, 1);
                 linePoints.pushBack( LinePoint( vec4f(posA, 0.5f*pA/PI, 0, 1), color ) );
                 linePoints.pushBack( LinePoint( vec4f(posB, 0.5f*pB/PI, 0, 1), color ) );
-            }
+            }+/
 
             // spectrum outline
             for (int i = 0; i < fftSize/2; ++i)
             {
-                float posxA = -0.9 + ZOOM * (i / (fftSize/2.0));
-                float posxB = -0.9 + ZOOM * ((i+1) /(fftSize/2.0));
+                float posxA = getPosX(i);
+                float posxB = getPosX(i+1);
                 float alphaA = linmap!float(magnitudes[i], minAbs, maxAbs, 0, 1);
                 float alphaB = linmap!float(magnitudes[i+1], minAbs, maxAbs, 0, 1);
 
@@ -340,7 +359,7 @@ int main(string[] args)
             }
 
             // compute spectral envelope for testing formant preservation ideas
-            {
+        /+    {
                 for (int i = 0; i < fftSize/2; ++i)
                 {
                     spectralEnv.pushBack(magnitudes[i]);
@@ -378,7 +397,7 @@ int main(string[] args)
                     linePoints.pushBack( LinePoint( vec4f(posxA,alphaA,0,1), globalAlpha*colorA ) );
                     linePoints.pushBack( LinePoint( vec4f(posxB,alphaB,0,1), globalAlpha*colorB ) );
                 }
-            }
+            }+/
         }
 
 
@@ -417,7 +436,7 @@ int main(string[] args)
 }
 
 static immutable string blitShaderSource =
-q{#version 330 core
+q"{#version 330 core
 
     #if VERTEX_SHADER
     in vec4 position;
@@ -440,4 +459,4 @@ q{#version 330 core
         fragColor = fColor;
     }
     #endif
-};
+}";
